@@ -153,8 +153,9 @@ fi
 ELBASEURL=${ELPROTO}://${ELHOST}:${ELPORT}
 
 TMPFILE=$(mktemp)
-trap 'rm -f $TMPFILE; exit 1' 1 2 15
-trap 'rm -f $TMPFILE' 0
+TMPFILE2=$(mktemp)
+trap 'rm -f $TMPFILE $TMPFILE2; exit 1' 1 2 15
+trap 'rm -f $TMPFILE $TMPFILE2' 0
 
 DATEREGEX="$(date +%Y.%m.%d)"
 i=0
@@ -165,8 +166,16 @@ do
 	DATEREGEX="${DATEREGEX}|$(date +%Y.%m.%d -d "-$i day")"
 done
 
-/usr/bin/curl -E /neteye/local/elasticsearch/conf/monitoring-certs/certs/NetEyeElasticCheck.crt.pem --key /neteye/local/elasticsearch/conf/monitoring-certs/certs/private/NetEyeElasticCheck.key.pem -s -X GET "${ELBASEURL}/_snapshot/${ELREPONAME}/_all?pretty" | jq '.snapshots[] | [.snapshot,.state] | join(":")' | egrep $DATEREGEX > $TMPFILE
+/usr/bin/curl -E /neteye/local/elasticsearch/conf/monitoring-certs/certs/NetEyeElasticCheck.crt.pem --key /neteye/local/elasticsearch/conf/monitoring-certs/certs/private/NetEyeElasticCheck.key.pem -s -X GET "${ELBASEURL}/_snapshot/${ELREPONAME}/_all?pretty" | jq '.snapshots[] | [.snapshot,.state] | join(":")' > $TMPFILE2
 
+totnum=$(cat $TMPFILE2 | wc -l)
+if [ $totnum -lt 1 ]
+then
+        echo "UNKNOWN - No snapshots found (API problem?)"
+        exit 3
+fi
+
+cat $TMPFILE2 | egrep $DATEREGEX > $TMPFILE
 if [ -n "$ELSNAPSHOTBASENAME" ]
 then
 	oknum=$(cat $TMPFILE | grep "$ELSNAPSHOTBASENAME" | grep -c SUCCESS)
@@ -176,6 +185,11 @@ else
 	totnum=$(cat $TMPFILE | wc -l)
 fi
 
+if [ $totnum -lt 1 ]
+then
+        echo "CRITICAL - No snapshots found in the last $DAYS day(s)"
+        exit 2
+fi
 
 if [ $oknum -eq $totnum ]
 then
