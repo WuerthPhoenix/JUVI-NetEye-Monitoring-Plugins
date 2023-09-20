@@ -22,6 +22,7 @@
 # Report bugs to:  juergen.vigna@wuerth-phoenix.com
 #
 # Modified:
+# 19/09/2023 VIJU: Adapted to Alyvix Serivice 2.3 now with /v0 API prefix
 # 03/03/2023 VIJU: Support new Alyvix Service API
 #
 
@@ -51,11 +52,11 @@ my $opt_help         = undef;
 my $opt_debug        = 0;
 my $opt_host         = undef;
 my $opt_hostname     = undef;
-my $opt_servicepre   = "Alyvix";
+my $opt_servicepre   = undef;
 my $opt_testuser     = undef;
 my $opt_timeout      = 0;
 my $opt_testing      = 0;
-my $opt_apibase      = 'testcases';
+my $opt_apibase      = 'v0/testcases';
 my $opt_proxybase    = undef;
 my $opt_statedir     = "/var/spool/neteye/tmp";
 my $opt_userpass     = "alyvix:password";
@@ -129,6 +130,7 @@ sub get_testcase_status {
 	if (defined($opt_proxybase)) {
 		$output_url = "${opt_proxybase}/${opt_apibase}/${opt_testcase}";
 	}
+	my $id = undef;
 	my $request;
 	my $response;
 	my $hash_content;
@@ -163,7 +165,6 @@ sub get_testcase_status {
 		my @arr = @$t;
 		my $size = @arr;
 		my $n = 0;
-		my $id = undef;
 		my $tname;
 		while (($n lt $size) && !defined($id)) {
 			$tname = $arr[$n]->{name};
@@ -214,6 +215,7 @@ sub get_testcase_status {
 	} else {
 		@measures = @$hash_content;
 	}
+	my $URL;
 	my $size = @measures;
 	my $n = 0;
 	my $testuser = "ALL";
@@ -391,24 +393,29 @@ sub get_testcase_status {
 		}
 	}
 
+	if ($opt_oldapi) {
+		$URL = "${output_url}/reports/?runcode=${testcode}";
+	} else {
+		$URL = "/neteye/alyvix/testcases?nodeName=${opt_hostname}&testcaseId=${id}&tab=reports&runcode=${testcode}";
+	}
 	my $testtimestr = scalar localtime $testtime;
 	if ($opt_debug) {
 		print "$testcode -> $oldcode\n";
 	}
 	if ($opt_testing) {
-		print "${statestr} - $nprob/$ntot problem(s)${probstr} (Last Run: $testtimestr) (<a href='${output_url}/reports/?runcode=${testcode}' target='_blank'>Log</a>) | duration=${testduration}ms;;;0;${perfout}\n";
+		print "${statestr} - $nprob/$ntot problem(s)${probstr} (Last Run: $testtimestr) (<a href='${URL}' target='_blank'>Log</a>) | duration=${testduration}ms;;;0;${perfout}\n";
 		if ($#opt_verbose) {
 			print "$verbstr";
 		}
 	} elsif ($testcode ne $oldcode) {
-		$outstr="${statestr} - $nprob problem(s)${probstr} (Last Run: $testtimestr) (<a href='${output_url}/reports/?runcode=${testcode}' target='_blank'>Log</a>)";
+		$outstr="${statestr} - $nprob problem(s)${probstr} (Last Run: $testtimestr) (<a href='${URL}' target='_blank'>Log</a>)";
 		passive_set_service($opt_hostname, $opt_service, $teststate, $outstr, $verbstr, "duration=${testduration}ms;;;0;${perfout}");
 		open(my $fh_out, '>', $statefile)
 			or die "Can't create \"$statefile\": $!\n";
 		print($fh_out "${testcode}\n");
 		close($fh_out);
 	} elsif ($oldstr eq "TIMEOUT") {
-		$outstr="${statestr} - $nprob problem(s)${probstr} [$oldstr] (Last Run: $testtimestr) (<a href='${output_url}/reports/?runcode=${testcode}' target='_blank'>Log</a>)\n";
+		$outstr="${statestr} - $nprob problem(s)${probstr} [$oldstr] (Last Run: $testtimestr) (<a href='${URL}' target='_blank'>Log</a>)\n";
 		passive_set_service($opt_hostname, $opt_service,$teststate, $outstr, $verbstr, "");
 	} else {
 		$teststate += 10;
@@ -427,9 +434,16 @@ sub get_alyvix_services {
 	$client->addHeader("Accept", "application/json");
 	$client->addHeader("X-HTTP-Method-Override", "GET");
 	$client->addHeader("Authorization", "Basic " . encode_base64($opt_userpass));
-	my %json_data = (
-		filter => "host.name==\"$hostname\" && match(\"$servicepre*\",service.name)",
-	);
+	my %json_data;
+	if (defined $servicepre) {
+		%json_data = (
+			filter => "host.name==\"$hostname\" && match(\"$servicepre*\",service.name)",
+		);
+	} else {
+		%json_data = (
+			filter => "host.name==\"$hostname\"",
+		);
+	}
 	my $data = encode_json(\%json_data);
 	$client->POST("/v1/objects/services", $data);
 
@@ -448,7 +462,11 @@ sub get_alyvix_services {
 	my @results = @$m;
 	my $size = @results;
 	if (!@results) {
-		printf "UNKNOWN - No Services with '$servicepre' found on Host '$hostname'\n";
+		if (defined $servicepre) {
+			printf "UNKNOWN - No Alyvix Services found on Host '$hostname' with prefix '$servicepre'\n";
+		} else {
+			printf "UNKNOWN - No Alyvix Services found on Host '$hostname'\n";
+		}
 		exit 3;
 	}
 	my $n = 0;
@@ -532,7 +550,6 @@ sub print_help() {
 	print " -D (--debug)       debug output\n";
 	print " -H (--host)        Alyvix3 Server hostname/ip\n";
 	print " -N (--hostname)    Alyvix3 Monitoring Hostname\n";
-	print " -T (--testcasepre) Alyvix3 Testcase Monitoring Service Prefix\n";
 	print " -U (--testuser)    Alyvix3 Testcase user (default: ALL_USERS)\n";
 	print " -t (--timeout)     Alyvix3 Testcase values older then timeout gives UNKNOWN (default: $opt_timeout)\n";
 	print " -d (--statedir)    Directory where to write the statefiles (default: $opt_statedir)\n";
@@ -540,14 +557,15 @@ sub print_help() {
 
 
 	print " -A (--apibase)     Alyvix3 Server API BaseURL (default: $opt_apibase)\n";
-	print " -P (--proxypass)   The Output Url to access logs uses a proxypass\n";
+	print " -P (--proxypass)   The Output Url to access logs uses a proxypass (ONLY for OLD API)\n";
+	print " -J (--usejwt)      Use and get the JWT Token from the Neteye Webinterface\n";
 	print "\n";
 	exit 0;
 }
 
 sub print_usage() {
 	print "Usage: \n";
-	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) [-T|--testcasepre <string>] [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-p|--userpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>]\n";
+	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-p|--userpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-J]\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
 }
@@ -649,11 +667,7 @@ sub get_jwt_token {
 	$URL = "/neteye/authentication/login";
 	my $client = REST::Client->new();
 	$client->setHost($base_url);
-	$client->getUseragent()->ssl_opts(
-		SSL_verify_mode => SSL_VERIFY_NONE, 
-		verify_hostname => 0
-	);
-	#$client->getUseragent()->ssl_opts(verify_hostname => 0);
+	$client->getUseragent()->ssl_opts(verify_hostname => 0);
 	$client->addHeader('Host', ${opt_host});
 	$client->addHeader('Sec-Ch-Ua', '"Not:A-Brand";v="99","Chromium";v="112"');
 	$client->addHeader('X-Icinga-Windowid', 'mquxzfpsojyc');
@@ -704,10 +718,6 @@ sub get_jwt_token {
 	}
 	$URL = ${base_url} . "/neteye/api/v1/jwt";
 	$ua = new LWP::UserAgent();
-	$ua->ssl_opts(
-		SSL_verify_mode => SSL_VERIFY_NONE, 
-		verify_hostname => 0
-	);
 	$response = $ua->get($URL,
 		'Host' => ${opt_host},
 		'Sec-Ch-Ua' => '"Not:A-Brand";v="99","Chromium";v="112"',
@@ -746,8 +756,8 @@ if ($opt_jwt) {
 	my @cred = split ":", $opt_userpass;
 	my $u = $cred[0];
 	my $p = $cred[1];
-	$opt_jwt = get_jwt_token("localhost",$u,$p);
-	if ($#opt_verbose) {
+	$opt_jwt = get_jwt_token("neteye4-juvi.wp.lan",$u,$p);
+	if ($#opt_verbose > 1) {
 		print "JWTTOKEN=$opt_jwt\n";
 	}
 }
@@ -772,5 +782,9 @@ foreach my $service ( sort @services ) {
 	$n++;
 }
 
-print "OK - Run all '$opt_servicepre' services\n$outstr";
+if (defined $opt_servicepre) {
+	print "OK - Run all Alyvix '$opt_servicepre' services\n$outstr";
+} else {
+	print "OK - Run all Alyvix services\n$outstr";
+}
 exit 0;
