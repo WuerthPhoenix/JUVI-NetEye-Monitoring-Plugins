@@ -667,10 +667,10 @@ sub get_jwt_token {
 	$URL = "/neteye/authentication/login";
 	my $client = REST::Client->new();
 	$client->setHost($base_url);
-    $client->getUseragent()->ssl_opts(
-        SSL_verify_mode => SSL_VERIFY_NONE,
-        verify_hostname => 0
-    );
+	$client->getUseragent()->ssl_opts(
+		SSL_verify_mode => SSL_VERIFY_NONE,
+		verify_hostname => 0
+	);
 	$client->addHeader('Host', ${opt_host});
 	$client->addHeader('Sec-Ch-Ua', '"Not:A-Brand";v="99","Chromium";v="112"');
 	$client->addHeader('X-Icinga-Windowid', 'mquxzfpsojyc');
@@ -721,10 +721,10 @@ sub get_jwt_token {
 	}
 	$URL = ${base_url} . "/neteye/api/v1/jwt";
 	$ua = new LWP::UserAgent();
-    $ua->ssl_opts(
-        SSL_verify_mode => SSL_VERIFY_NONE,
-        verify_hostname => 0
-    );
+	$ua->ssl_opts(
+		SSL_verify_mode => SSL_VERIFY_NONE,
+		verify_hostname => 0
+	);
 	$response = $ua->get($URL,
 		'Host' => ${opt_host},
 		'Sec-Ch-Ua' => '"Not:A-Brand";v="99","Chromium";v="112"',
@@ -759,7 +759,6 @@ sub get_jwt_token {
 #
 
 if ($opt_jwt) {
-	#my $opt_jwt = `/neteye/shared/monitoring/bin/getjwt.sh "neteye4-juvi.wp.lan" "root" "5becAC7wL0zkn1qe3Hk1EVp9YUzqDTcb"`;
 	my @cred = split ":", $opt_userpass;
 	my $u = $cred[0];
 	my $p = $cred[1];
