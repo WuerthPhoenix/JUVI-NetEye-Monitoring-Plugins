@@ -107,11 +107,6 @@ if (! defined($opt_host)) {
 	exit 3;
 }
 
-if (! defined($opt_hostname)) {
-	print "ERROR: Missing Alyvix Server Hostname (-N)!\n";
-	exit 3;
-}
-
 if (! defined($opt_testcase)) {
 	print "ERROR: Missing Testcase Name to check (-T)!\n";
 	exit 3;
@@ -661,5 +656,20 @@ if ($opt_jwt) {
 }
 
 $opt_oldapi = get_api_version($opt_host);
+if (!$opt_oldapi && ! defined($opt_hostname)) {
+	print "ERROR: Missing Alyvix Server Hostname (-N)!\n";
+	exit 3;
+}
+
+if (!$opt_oldapi && $opt_jwt) {
+	my @cred = split ":", $opt_userpass;
+	my $u = $cred[0];
+	my $p = $cred[1];
+	$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
+	if ($#opt_verbose > 1) {
+		print "JWTTOKEN=$opt_jwt\n";
+	}
+}
+
 get_testcase_status($opt_host, $opt_testcase, $opt_timeout, $opt_hostname);
 exit 3;
