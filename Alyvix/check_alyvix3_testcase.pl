@@ -641,16 +641,6 @@ sub get_jwt_token {
 # ------------------------------------------ START MAIN --------------------------------------------
 #
 
-if ($opt_jwt) {
-	my @cred = split ":", $opt_userpass;
-	my $u = $cred[0];
-	my $p = $cred[1];
-	$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
-	if ($#opt_verbose > 1) {
-		print "JWTTOKEN=$opt_jwt\n";
-	}
-}
-
 $opt_oldapi = get_api_version($opt_host);
 if (!$opt_oldapi) {
 	if (! defined($opt_hostname)) {
@@ -661,6 +651,7 @@ if (!$opt_oldapi) {
 	if ($opt_jwt) {
 		if (! defined($opt_userpass)) {
 			print "ERROR: Missing Icinga2 Web credentials (-p)!\n";
+			exit 3;
 		}
 		my @cred = split ":", $opt_userpass;
 		my $u = $cred[0];
