@@ -773,9 +773,9 @@ sub get_jwt_token {
 #
 
 $opt_oldapi = get_api_version($opt_host);
-if (!opt_oldapi) {
+if (!$opt_oldapi) {
 	if ($opt_jwt) {
-		my @cred = split ":", $opt_userpass;
+		my @cred = split ":", $opt_webuserpass;
 		my $u = $cred[0];
 		my $p = $cred[1];
 		$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
@@ -784,7 +784,6 @@ if (!opt_oldapi) {
 		}
 	}
 }
-
 get_alyvix_services($opt_hostname, $opt_servicepre);
 my $n = 0;
 my $outstr = "";
