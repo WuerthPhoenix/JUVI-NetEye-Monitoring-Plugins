@@ -554,7 +554,10 @@ sub get_jwt_token {
 	$URL = "/neteye/authentication/login";
 	my $client = REST::Client->new();
 	$client->setHost($base_url);
-	$client->getUseragent()->ssl_opts(verify_hostname => 0);
+	$client->getUseragent()->ssl_opts(
+		SSL_verify_mode => SSL_VERIFY_NONE,
+		verify_hostname => 0
+	);
 	$client->addHeader('Host', ${opt_host});
 	$client->addHeader('Sec-Ch-Ua', '"Not:A-Brand";v="99","Chromium";v="112"');
 	$client->addHeader('X-Icinga-Windowid', 'mquxzfpsojyc');
@@ -605,6 +608,10 @@ sub get_jwt_token {
 	}
 	$URL = ${base_url} . "/neteye/api/v1/jwt";
 	$ua = new LWP::UserAgent();
+	$ua->ssl_opts(
+		SSL_verify_mode => SSL_VERIFY_NONE,
+		verify_hostname => 0
+	);
 	$response = $ua->get($URL,
 		'Host' => ${opt_host},
 		'Sec-Ch-Ua' => '"Not:A-Brand";v="99","Chromium";v="112"',
