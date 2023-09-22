@@ -762,7 +762,7 @@ if ($opt_jwt) {
 	my @cred = split ":", $opt_userpass;
 	my $u = $cred[0];
 	my $p = $cred[1];
-	$opt_jwt = get_jwt_token("localhost",$u,$p);
+	$opt_jwt = get_jwt_token("icinga2-master.neteyelocal",$u,$p);
 	if ($#opt_verbose > 1) {
 		print "JWTTOKEN=$opt_jwt\n";
 	}
