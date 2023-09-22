@@ -41,8 +41,8 @@ use REST::Client;
 use MIME::Base64;
 use URI::Encode qw( uri_encode );
 
-my $PROGNAME = "check_alyvix3_testcases.pl";
-my $VERSION  = "2.0.0";
+my $PROGNAME = "check_alyvix3_testcase.pl";
+my $VERSION  = "2.0.1";
 sub print_help ();
 sub print_usage ();
 
@@ -58,12 +58,10 @@ my $opt_testing      = 0;
 my $opt_apibase      = 'v0/testcases';
 my $opt_proxybase    = undef;
 my $opt_statedir     = "/var/spool/neteye/tmp";
-my $opt_userpass     = "alyvix:password";
+my $opt_userpass     = undef;
 my $opt_oldapi       = 0;
 my $opt_jwt          = 0;
-
-# Global Variables
-my $request_url = "https://icinga2-master.neteyelocal:5665";
+my $opt_masterhostname = "icinga2-master.neteyelocal";
 
 # Get the options
 Getopt::Long::Configure('bundling');
@@ -79,6 +77,8 @@ GetOptions(
 	'host=s'		=> \$opt_host,
 	'N=s'			=> \$opt_hostname,
 	'hostname=s'		=> \$opt_hostname,
+	'M=s'			=> \$opt_masterhostname,
+	'masterhostname=s'		=> \$opt_masterhostname,
 	'T=s'			=> \$opt_testcase,
 	'testcase=s'		=> \$opt_testcase,
 	'U=s'			=> \$opt_testuser,
@@ -111,6 +111,13 @@ if (! defined($opt_hostname)) {
 	print "ERROR: Missing Alyvix Server Hostname (-N)!\n";
 	exit 3;
 }
+
+if (! defined($opt_userpass)) {
+	print "ERROR: Missing Icinga2 Web credentials (-p)!\n";
+}
+
+# Global Variables
+my $request_url = "https://$opt_masterhostname:5665";
 
 # --------------------------------------------------- helper -----------------------------------------
 #
@@ -430,11 +437,12 @@ sub print_help() {
 	print " -D (--debug)       debug output\n";
 	print " -H (--host)        Alyvix3 Server hostname/ip\n";
 	print " -N (--hostname)    Alyvix3 Server hostname for report-url\n";
+	print " -M (--masterhostname) Alyvix3 Master Server hostname for Icinga2 Web Access (default: $opt_masterhostname)\n";
 	print " -T (--testcase)    Alyvix3 Testcase Name\n";
 	print " -U (--testuser)    Alyvix3 Testcase user (default: ALL_USERS)\n";
 	print " -t (--timeout)     Alyvix3 Testcase values older then timeout gives UNKNOWN (default: $opt_timeout)\n";
 	print " -d (--statedir)    Directory where to write the statefiles (default: $opt_statedir)\n";
-	print " -p (--userpass)    User:Password for Icinga2 API access (default: alyvix:***)\n";
+	print " -p (--userpass)    User:Password for Icinga2 Web access\n";
 	print " -J (--usejwt)      Get JWT Token from NetEye API and use it on Alyvix API (use -p option)\n";
 	print " -A (--apibase)     Alyvix3 Server API BaseURL (default: $opt_apibase)\n";
 	print " -P (--proxypass)   The Output Url to access logs uses a proxypass\n";
@@ -444,7 +452,7 @@ sub print_help() {
 
 sub print_usage() {
 	print "Usage: \n";
-	print "  $PROGNAME (-H|--host <hostname/ip>) (-T|--testcase <string>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-p|--userpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>]\n";
+	print "  $PROGNAME (-H|--host <hostname/ip>) (-T|--testcase <string>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>]\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
 }
@@ -634,7 +642,7 @@ if ($opt_jwt) {
 	my @cred = split ":", $opt_userpass;
 	my $u = $cred[0];
 	my $p = $cred[1];
-	$opt_jwt = get_jwt_token("icinga2.neteyelocal",$u,$p);
+	$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
 	if ($#opt_verbose > 1) {
 		print "JWTTOKEN=$opt_jwt\n";
 	}
