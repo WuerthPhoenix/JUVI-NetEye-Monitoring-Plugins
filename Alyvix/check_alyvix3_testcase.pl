@@ -112,6 +112,11 @@ if (! defined($opt_hostname)) {
 	exit 3;
 }
 
+if (! defined($opt_testcase)) {
+	print "ERROR: Missing Testcase Name to check (-T)!\n";
+	exit 3;
+}
+
 if (! defined($opt_userpass)) {
 	print "ERROR: Missing Icinga2 Web credentials (-p)!\n";
 }
