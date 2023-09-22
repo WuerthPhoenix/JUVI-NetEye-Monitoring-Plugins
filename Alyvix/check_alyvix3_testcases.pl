@@ -52,6 +52,7 @@ my $opt_help         = undef;
 my $opt_debug        = 0;
 my $opt_host         = undef;
 my $opt_hostname     = undef;
+my $opt_masterhostname = 'icinga2-master.neteyelocal';
 my $opt_servicepre   = undef;
 my $opt_testuser     = undef;
 my $opt_timeout      = 0;
@@ -59,15 +60,10 @@ my $opt_testing      = 0;
 my $opt_apibase      = 'v0/testcases';
 my $opt_proxybase    = undef;
 my $opt_statedir     = "/var/spool/neteye/tmp";
-my $opt_userpass     = "alyvix:password";
+my $opt_userpass     = undef;
+my $opt_webuserpass  = undef;
 my $opt_oldapi       = 0;
 my $opt_jwt          = 0;
-
-# Global Variables
-my $request_url = "https://icinga2-master.neteyelocal:5665";
-my @services;
-my %testcases;
-my %timeouts;
 
 # Get the options
 Getopt::Long::Configure('bundling');
@@ -83,6 +79,8 @@ GetOptions(
 	'host=s'		=> \$opt_host,
 	'N=s'			=> \$opt_hostname,
 	'hostname=s'		=> \$opt_hostname,
+	'M=s'			=> \$opt_masterhostname,
+	'masterhostname=s'		=> \$opt_masterhostname,
 	'T=s'			=> \$opt_servicepre,
 	'testcasepre=s'		=> \$opt_servicepre,
 	'U=s'			=> \$opt_testuser,
@@ -93,6 +91,8 @@ GetOptions(
 	'statedir=s'		=> \$opt_statedir,
 	'p=s'			=> \$opt_userpass,
 	'userpass=s'		=> \$opt_userpass,
+	'w=s'			=> \$opt_webuserpass,
+	'webuserpass=s'		=> \$opt_webuserpass,
 	'A=s'			=> \$opt_apibase,
 	'apibase=s'		=> \$opt_apibase,
 	'P=s'			=> \$opt_proxybase,
@@ -115,6 +115,20 @@ if (! defined($opt_hostname)) {
 	print "ERROR: Missing Monitoring Hostname (-N)!\n";
 	exit 3;
 }
+
+if (! defined($opt_userpass)) {
+	print "ERROR: Missing Icinga2 API user:password (-p)!\n";
+	exit 3;
+}
+
+if (! defined($opt_webuserpass)) {
+	$opt_webuserpass = $opt_userpass;
+}
+# Global Variables
+my $request_url = "https://${opt_masterhostname}:5665";
+my @services;
+my %testcases;
+my %timeouts;
 
 # --------------------------------------------------- helper -----------------------------------------
 #
@@ -536,7 +550,7 @@ sub passive_set_service {
 
 sub print_help() {
 	printf "%s, Version %s\n",$PROGNAME, $VERSION;
-	print "Copyright (c) 2020 Juergen Vigna\n";
+	print "Copyright (c) 2020-2023 Juergen Vigna\n";
 	print "This program is licensed under the terms of the\n";
 	print "GNU General Public License\n(check source code for details)\n";
 	print "\n";
@@ -550,12 +564,12 @@ sub print_help() {
 	print " -D (--debug)       debug output\n";
 	print " -H (--host)        Alyvix3 Server hostname/ip\n";
 	print " -N (--hostname)    Alyvix3 Monitoring Hostname\n";
+	print " -M (--masterhostname) Icinga2 Master/Web Hostname for API and Web access\n";
 	print " -U (--testuser)    Alyvix3 Testcase user (default: ALL_USERS)\n";
 	print " -t (--timeout)     Alyvix3 Testcase values older then timeout gives UNKNOWN (default: $opt_timeout)\n";
 	print " -d (--statedir)    Directory where to write the statefiles (default: $opt_statedir)\n";
-	print " -p (--userpass)    User:Password for Icinga2 API access (default: alyvix:***)\n";
-
-
+	print " -p (--userpass)    User:Password for Icinga2 API access\n";
+	print " -w (--webuserpass) User:Password for Icinga2 Web access (default: <userpass> of -p)\n";
 	print " -A (--apibase)     Alyvix3 Server API BaseURL (default: $opt_apibase)\n";
 	print " -P (--proxypass)   The Output Url to access logs uses a proxypass (ONLY for OLD API)\n";
 	print " -J (--usejwt)      Use and get the JWT Token from the Neteye Webinterface\n";
@@ -565,7 +579,7 @@ sub print_help() {
 
 sub print_usage() {
 	print "Usage: \n";
-	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-p|--userpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-J]\n";
+	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-w|--webuserpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>] [-J]\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
 }
@@ -758,17 +772,19 @@ sub get_jwt_token {
 # ------------------------------------------ START MAIN --------------------------------------------
 #
 
-if ($opt_jwt) {
-	my @cred = split ":", $opt_userpass;
-	my $u = $cred[0];
-	my $p = $cred[1];
-	$opt_jwt = get_jwt_token("icinga2-master.neteyelocal",$u,$p);
-	if ($#opt_verbose > 1) {
-		print "JWTTOKEN=$opt_jwt\n";
+$opt_oldapi = get_api_version($opt_host);
+if (!opt_oldapi) {
+	if ($opt_jwt) {
+		my @cred = split ":", $opt_userpass;
+		my $u = $cred[0];
+		my $p = $cred[1];
+		$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
+		if ($#opt_verbose > 1) {
+			print "JWTTOKEN=$opt_jwt\n";
+		}
 	}
 }
 
-$opt_oldapi = get_api_version($opt_host);
 get_alyvix_services($opt_hostname, $opt_servicepre);
 my $n = 0;
 my $outstr = "";
