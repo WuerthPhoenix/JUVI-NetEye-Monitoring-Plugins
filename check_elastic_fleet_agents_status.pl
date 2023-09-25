@@ -57,7 +57,7 @@ my $opt_debug    = 0;
 my $opt_host     = "kibana.neteyelocal";
 my $opt_port     = "5601";
 my $opt_user     = "kibana_monitor";
-my $opt_password = "ReadOnly00";
+my $opt_password = "Password";
 my $opt_testing  = 0;
 
 # Get the options
