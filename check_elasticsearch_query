@@ -1,4 +1,25 @@
 #!/bin/bash
+#
+# check_elasticsearch_query - Check number of records written to elasticsearch
+#
+# Copyright (C) 2023 Juergen Vigna
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#
+# Report bugs to:  juergen.vigna@wuerth-phoenix.com
+#
 
 ECURL=/usr/share/neteye/elasticsearch/scripts/es_curl.sh
 host=elasticsearch.neteyelocal
@@ -33,6 +54,8 @@ print_help () {
         echo "  -w, --warning : warning count  (default: not checked)"
         echo "  -c, --critical: critical count (default: not checked)"
         echo "  -L, --checkforless: check critical/warning for <= instead for >= which is the default"
+        echo "  -C, --curlcmd : The CURL command to use to connect to elasticsearch (default: $ECURL)"
+	echo "                  f.ex.: /usr/bin/curl -E 'ES_CERT_PEM' --key 'ES_CERT_KEY'"
         echo
 	print_version
 }
@@ -120,6 +143,10 @@ while [[ -n "$1" ]]; do
             ;;
         -L|--checkforless)
             checkless=yes
+            ;;
+        -C|--curlcmd)
+            ECURL=$2
+            shift
             ;;
         *)
             echo "Wrong option $1!"
