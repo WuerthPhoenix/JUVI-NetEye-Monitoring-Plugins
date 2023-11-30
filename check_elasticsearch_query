@@ -1,0 +1,168 @@
+#!/bin/bash
+
+ECURL=/usr/share/neteye/elasticsearch/scripts/es_curl.sh
+host=elasticsearch.neteyelocal
+port=9200
+index='logstash-*'
+timeframe="1h"
+warning=
+critical=
+query=
+
+#---------------------------------------- START FUNCTIONS ---------------------------------------
+
+print_version () {
+    cat <<EOF
+check_elasticsearch_query - $version - Copyright Juergen Vigna - Wuerth Phoenix srl.
+
+This Monitoring plugin comes with no warranty. You can use and distribute it
+under terms of the GNU General Public License Version 2 (GPL V2) or later.
+EOF
+}
+
+print_help () {
+	echo "Check a count of number of events fount in elasticsearch over a query and timeframe"
+        echo "Usage: $PROGNAME [-H <host>] [-p <port>] -q <query> [-t <timeframe>] [-w <count>] [-c <count>] [-L]"
+        echo "  -h, --help    : this help"
+        echo "  -V, --version : program version"
+        echo "  -H, --host    : host/address of elasticsearch (default: $host)"
+        echo "  -p, --port    : tcp port of elasticsearch (default: $port)"
+        echo "  -i, --index   : elasticsearch index name (default: $index)"
+	echo "  -q, --query   : elasticsearch query string"
+        echo "  -t, --time    : timeframe for search from now back f.ex. 1h or 1d (default: $timeframe)"
+        echo "  -w, --warning : warning count  (default: not checked)"
+        echo "  -c, --critical: critical count (default: not checked)"
+        echo "  -L, --checkforless: check critical/warning for <= instead for >= which is the default"
+        echo
+	print_version
+}
+
+check_count () {
+	COUNT=$1
+	STATESTR=OK
+	STATE=0
+	if [ -n "$checkless" ]
+	then
+		if [ -n "$critical" ]
+		then
+			if [ $COUNT -le $critical ]
+			then
+				STATESTR=CRITICAL
+				STATE=2
+			fi
+		fi
+		if [ -n "$warning" -a $STATE -eq 0 ]
+		then
+			if [ $COUNT -le $warning ]
+			then
+				STATESTR=WARNING
+				STATE=1
+			fi
+		fi
+	else
+		if [ -n "$critical" ]
+		then
+			if [ $COUNT -ge $critical ]
+			then
+				STATESTR=CRITICAL
+				STATE=2
+			fi
+		fi
+		if [ -n "$warning" -a $STATE -eq 0 ]
+		then
+			if [ $COUNT -ge $warning ]
+			then
+				STATESTR=WARNING
+				STATE=1
+			fi
+		fi
+	fi
+}
+
+#---------------------------------------- END FUNCTIONS ---------------------------------------
+while [[ -n "$1" ]]; do
+    case "$1" in
+        --help|-h)
+            print_help
+            exit $STATE_OK
+        ;;
+        --version|-V)
+            print_version
+            exit $STATE_OK
+        ;;
+        -H|--host)
+            host=$2
+            shift
+            ;;
+        -q|--query)
+            query="$2"
+            shift
+            ;;
+        -t|--time)
+            timeframe=$2
+            shift
+            ;;
+        -w|--warning)
+            warning=$2
+            shift
+            ;;
+        -c|--critical)
+            critical=$2
+            shift
+            ;;
+        -p|--port)
+            port=$2
+            shift
+            ;;
+        -i|--index)
+            index=$2
+            shift
+            ;;
+        -L|--checkforless)
+            checkless=yes
+            ;;
+        *)
+            echo "Wrong option $1!"
+            print_help
+            exit $STATE_UNKNOWN
+        ;;
+    esac
+    shift
+done
+
+if [ -z "$query" ]
+then
+	echo "Please specify neede option -q <query>"
+	exit $STATE_UNKNOWN
+fi
+
+TMPFILE=$(mktemp)
+trap 'rm -f $TMPFILE; exit 10' 1 2 15
+trap 'rm -f $TMPFILE' 0
+
+$ECURL "https://$host:$port/$index/_count?pretty" -H 'Content-Type: application/json' -d"
+{
+  \"query\": {
+    \"bool\": {
+      \"must\": {
+          \"query_string\": {
+            \"query\": \"$query\"
+          }
+      },
+      \"filter\": {
+        \"range\": {
+          \"@timestamp\": {
+            \"gt\":\"now-$timeframe\"
+          }
+        }
+      }
+    }
+  }
+}
+" >$TMPFILE 2>/dev/null
+
+count=$(grep count $TMPFILE | sed -e 's/[^0-9]*//g')
+
+check_count $count
+echo "$STATESTR: Found $count events|count=$count;$warning;$critical;0;"
+exit $STATE
