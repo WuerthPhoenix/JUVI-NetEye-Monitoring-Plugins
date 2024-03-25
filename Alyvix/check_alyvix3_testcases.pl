@@ -180,7 +180,7 @@ sub get_testcase_status {
 		my $size = @arr;
 		my $n = 0;
 		my $tname;
-		while (($n lt $size) && !defined($id)) {
+		while (($n < $size) && !defined($id)) {
 			$tname = $arr[$n]->{name};
 			if ($tname =~ /$opt_testcase/) {
 				$id = $arr[$n]->{id};
