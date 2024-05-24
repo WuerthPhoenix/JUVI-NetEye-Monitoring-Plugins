@@ -51,7 +51,7 @@ else
 	fi
 fi
 
-for i in /etc/neteye-satellite.d/*/*.conf
+for i in $(ls -1 /etc/neteye-satellite.d/*/*.conf 2>/dev/null)
 do
 	HOST=$(cat $i | jq .fqdn | tr -d \")
 	RELEASE=$(ssh $HOST cat /etc/neteye-release)
