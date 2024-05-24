@@ -16,28 +16,45 @@ TMPFILE=$(mktemp)
 trap 'rm -f $TMPFILE; exit 1' 1 2 15
 trap 'rm -f $TMPFILE' 0
 
-for i in $(cat /etc/neteye-cluster | jq '.Nodes[].hostname, .VotingOnlyNode.hostname, .ElasticOnlyNodes[].hostname' 2>/dev/null | tr -d \")
-do
-        if [ "$i" != "null" ]
-        then
-                RELEASE=$(ssh $i cat /etc/neteye-release)
-		if [ -n "$VERSION" ]
+if [ -e /etc/neteye-cluster ]
+then
+	for i in $(cat /etc/neteye-cluster | jq '.Nodes[].hostname, .VotingOnlyNode.hostname, .ElasticOnlyNodes[].hostname' 2>/dev/null | tr -d \")
+	do
+		if [ "$i" != "null" ]
 		then
-                	printf "%-30s: %s\n" $i "$RELEASE" >>$TMPFILE
-			ver=$(echo "$RELEASE" | sed -e 's/[^0-9\.]*//g')
-			if [ "$ver" != "$VERSION" ]
+			RELEASE=$(ssh $i cat /etc/neteye-release)
+			if [ -n "$VERSION" ]
 			then
-				state=1
+				printf "%-30s: %s\n" $i "$RELEASE" >>$TMPFILE
+				ver=$(echo "$RELEASE" | sed -e 's/[^0-9\.]*//g')
+				if [ "$ver" != "$VERSION" ]
+				then
+					state=1
+				fi
+			else
+				printf "%-30s: %s\n" $i "$RELEASE"
 			fi
-		else
-                	printf "%-30s: %s\n" $i "$RELEASE"
 		fi
-        fi
-done
+	done
+else
+	RELEASE=$(cat /etc/neteye-release)
+	if [ -n "$VERSION" ]
+	then
+		printf "%-30s: %s\n" $i "$RELEASE" >>$TMPFILE
+		ver=$(echo "$RELEASE" | sed -e 's/[^0-9\.]*//g')
+		if [ "$ver" != "$VERSION" ]
+		then
+			state=1
+		fi
+	else
+		printf "%-30s: %s\n" $i "$RELEASE"
+	fi
+fi
+
 for i in /etc/neteye-satellite.d/*/*.conf
 do
-        HOST=$(cat $i | jq .fqdn | tr -d \")
-        RELEASE=$(ssh $HOST cat /etc/neteye-release)
+	HOST=$(cat $i | jq .fqdn | tr -d \")
+	RELEASE=$(ssh $HOST cat /etc/neteye-release)
 	if [ -n "$VERSION" ]
 	then
 		printf "%-30s: %s\n" $HOST "$RELEASE" >>$TMPFILE
