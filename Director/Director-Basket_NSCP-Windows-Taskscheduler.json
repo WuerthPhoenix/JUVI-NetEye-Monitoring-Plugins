@@ -1,0 +1,185 @@
+{
+    "ServiceTemplate": {
+        "Agent_Win_TaskSched_Status": {
+            "check_command": "nscp-local",
+            "check_interval": 3600,
+            "fields": [
+                {
+                    "datafield_id": 10135,
+                    "is_required": "y",
+                    "var_filter": null
+                },
+                {
+                    "datafield_id": 10136,
+                    "is_required": "y",
+                    "var_filter": null
+                },
+                {
+                    "datafield_id": 10137,
+                    "is_required": "y",
+                    "var_filter": null
+                },
+                {
+                    "datafield_id": 10138,
+                    "is_required": "n",
+                    "var_filter": null
+                },
+                {
+                    "datafield_id": 10139,
+                    "is_required": "y",
+                    "var_filter": null
+                }
+            ],
+            "imports": [
+                "nx-st-agent",
+                "nx-st-type-custom"
+            ],
+            "object_name": "Agent_Win_TaskSched_Status",
+            "object_type": "template",
+            "uuid": "4e9d0364-251c-4af5-be5a-83f1000003f5",
+            "vars": {
+                "nscp_arguments": [
+                    "filter=title like '$win_task_name$'",
+                    "empty-state=critical",
+                    "detail-syntax=%(title) (%(most_recent_run_time) UTC) [exit_code:%(exit_code)] [statuts:%(task_status)]",
+                    "critical=(most_recent_run_time < -90s) or (exit_code < 0)",
+                    "empty-syntax=CRITICAL: Task '$win_task_name$' NOT found"
+                ],
+                "nscp_modules": [
+                    "CheckTaskSched"
+                ],
+                "nscp_query": [
+                    "check_tasksched"
+                ],
+                "nscp_showall": true,
+                "win_task_name": "MyTask"
+            }
+        }
+    },
+    "DataList": {
+        "NSCP module": {
+            "entries": [
+                {
+                    "entry_name": "CheckDisk",
+                    "entry_value": "CheckDisk",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "CheckSystem",
+                    "entry_value": "CheckSystem",
+                    "format": "string",
+                    "allowed_roles": null
+                }
+            ],
+            "list_name": "NSCP module",
+            "owner": "root",
+            "uuid": "1b1894cd-96ba-4333-8923-272b000000ac"
+        },
+        "NSCP query": {
+            "entries": [
+                {
+                    "entry_name": "check_memory",
+                    "entry_value": "Check free/used memory on the system.",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "check_os_version",
+                    "entry_value": "Check the version of the underlaying OS.",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "check_pagefile",
+                    "entry_value": "Check the size of the system pagefile(s).",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "check_pdh",
+                    "entry_value": "Check the value of a performance (PDH) counter on the local or remote system",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "check_process",
+                    "entry_value": "Check state/metrics of one or more of the processes running on the computer.",
+                    "format": "string",
+                    "allowed_roles": null
+                },
+                {
+                    "entry_name": "check_service",
+                    "entry_value": "Check the state of one or more of the computer services.",
+                    "format": "string",
+                    "allowed_roles": null
+                }
+            ],
+            "list_name": "NSCP query",
+            "owner": "root",
+            "uuid": "1b1894cd-96ba-4333-8923-272b000000af"
+        }
+    },
+    "Datafield": {
+        "10135": {
+            "uuid": "fe763f8f-4268-48d5-b41a-55c8000000ab",
+            "varname": "nscp_arguments",
+            "caption": "NSCP Arguments",
+            "description": null,
+            "datatype": "Icinga\\Module\\Director\\DataType\\DataTypeArray",
+            "format": null,
+            "settings": {},
+            "category": null
+        },
+        "10136": {
+            "uuid": "fe763f8f-4268-48d5-b41a-55c8000000ac",
+            "varname": "nscp_modules",
+            "caption": "NSCP module",
+            "description": null,
+            "datatype": "Icinga\\Module\\Director\\DataType\\DataTypeDatalist",
+            "format": null,
+            "settings": {
+                "behavior": "strict",
+                "data_type": "array",
+                "datalist": "NSCP module"
+            },
+            "category": null
+        },
+        "10137": {
+            "uuid": "fe763f8f-4268-48d5-b41a-55c8000000af",
+            "varname": "nscp_query",
+            "caption": "NSCP query",
+            "description": null,
+            "datatype": "Icinga\\Module\\Director\\DataType\\DataTypeDatalist",
+            "format": null,
+            "settings": {
+                "behavior": "strict",
+                "data_type": "array",
+                "datalist": "NSCP query"
+            },
+            "category": null
+        },
+        "10138": {
+            "uuid": "fe763f8f-4268-48d5-b41a-55c8000000ae",
+            "varname": "nscp_showall",
+            "caption": "NSCP showall",
+            "description": null,
+            "datatype": "Icinga\\Module\\Director\\DataType\\DataTypeBoolean",
+            "format": null,
+            "settings": {},
+            "category": null
+        },
+        "10139": {
+            "uuid": "fe763f8f-4268-48d5-b41a-55c80000275f",
+            "varname": "win_task_name",
+            "caption": "Windows Task Name",
+            "description": "Windows Task Name",
+            "datatype": "Icinga\\Module\\Director\\DataType\\DataTypeString",
+            "format": null,
+            "settings": {
+                "visibility": "visible"
+            },
+            "category": null
+        }
+    }
+}
