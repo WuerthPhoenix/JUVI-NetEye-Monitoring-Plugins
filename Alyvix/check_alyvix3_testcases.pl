@@ -1,9 +1,9 @@
 #! /usr/bin/perl
 # nagios: +epn
 #
-# check_alyvix3_testcases.pl - Get Monitoring Values from Alyvix3 Server API passively
+# check_alyvix3_testcases.pl - Get Monitoring Values from Alyvix3 Service API passively
 #
-# Copyright (C) 2020-2023 Juergen Vigna
+# Copyright (C) 2020-2024 Juergen Vigna
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -24,6 +24,7 @@
 # Modified:
 # 19/09/2023 VIJU: Adapted to Alyvix Serivice 2.3 now with /v0 API prefix
 # 03/03/2023 VIJU: Support new Alyvix Service API
+# 18/07/2024 VIJU: Added support for Alyvix Service v3 API
 #
 
 use strict;
@@ -43,7 +44,7 @@ use MIME::Base64;
 use URI::Encode qw( uri_encode );
 
 my $PROGNAME = "check_alyvix3_testcases.pl";
-my $VERSION  = "2.0.0";
+my $VERSION  = "2.1.0";
 sub print_help ();
 sub print_usage ();
 
@@ -57,12 +58,13 @@ my $opt_servicepre   = undef;
 my $opt_testuser     = undef;
 my $opt_timeout      = 0;
 my $opt_testing      = 0;
+my $opt_apiversion   = undef;
+my $opt_tenant       = undef;
 my $opt_apibase      = 'v0/testcases';
 my $opt_proxybase    = undef;
 my $opt_statedir     = "/var/spool/neteye/tmp";
 my $opt_userpass     = undef;
 my $opt_webuserpass  = undef;
-my $opt_oldapi       = 0;
 my $opt_jwt          = 0;
 
 # Get the options
@@ -80,7 +82,7 @@ GetOptions(
 	'N=s'			=> \$opt_hostname,
 	'hostname=s'		=> \$opt_hostname,
 	'M=s'			=> \$opt_masterhostname,
-	'masterhostname=s'		=> \$opt_masterhostname,
+	'masterhostname=s'	=> \$opt_masterhostname,
 	'T=s'			=> \$opt_servicepre,
 	'testcasepre=s'		=> \$opt_servicepre,
 	'U=s'			=> \$opt_testuser,
@@ -99,6 +101,10 @@ GetOptions(
 	'useproxypass=s'	=> \$opt_proxybase,
 	'J'			=> \$opt_jwt,
 	'usejwt'		=> \$opt_jwt,
+	'V=i'			=> \$opt_apiversion,
+	'apiversion=i'		=> \$opt_apiversion,
+	'E=s'			=> \$opt_tenant,
+	'tenant=s'		=> \$opt_tenant,
 	) || print_help();
 
 # If somebody wants the help ...
@@ -124,21 +130,32 @@ if (! defined($opt_userpass)) {
 if (! defined($opt_webuserpass)) {
 	$opt_webuserpass = $opt_userpass;
 }
+
+if (defined($opt_apiversion) && ($opt_apiversion > 1)) {
+	if (! defined($opt_tenant)) {
+		print "ERROR: Missing Tenant Name to check (-E)!\n";
+		exit 3;
+	}
+}
+
 # Global Variables
 my $request_url = "https://${opt_masterhostname}:5665";
 my @services;
 my %testcases;
+my %tenants;
 my %timeouts;
 
 # --------------------------------------------------- helper -----------------------------------------
 #
 
 sub get_testcase_status {
+	my $opt_apiversion = shift;
 	my $opt_host = shift;
 	my $opt_testcase = shift;
 	my $opt_timeout = shift;
 	my $opt_hostname = shift;
 	my $opt_service = shift;
+	my $opt_tenant = shift;
 	my $base_url = "https://${opt_host}/${opt_apibase}/${opt_testcase}/";
 	my $output_url = $base_url;
 	if (defined($opt_proxybase)) {
@@ -154,10 +171,12 @@ sub get_testcase_status {
 		verify_hostname => 0
 	);
 
-	if (!$opt_oldapi) {
-        	$base_url = "https://$opt_host/${opt_apibase}";
-#        	$request = HTTP::Request->new('GET', $base_url);
-#        	$response = $useragent->request($request);
+	if ($opt_apiversion) {
+		if ($opt_apiversion > 1) {
+			$base_url = "https://${opt_host}/v${opt_apiversion}/${opt_tenant}/testcases";
+		} else {
+			$base_url = "https://${opt_host}/${opt_apibase}";
+		}
 		if ($opt_jwt) {
 			$response = $useragent->get($base_url, "Authorization" => "Bearer $opt_jwt");
 		} else {
@@ -191,10 +210,12 @@ sub get_testcase_status {
 			print "UNKNOWN - Testcase $opt_testcase not found";
 			exit 3;
 		}
-		$base_url = "https://$opt_host/${opt_apibase}/" . $id . "/measures?testcase_case_screenshot=false";
+		if ($opt_apiversion > 1) {
+			$base_url = "https://$opt_host/v${opt_apiversion}/${opt_tenant}/testcases/" . $id . "/measures?testcase_case_screenshot=false";
+		} else {
+			$base_url = "https://$opt_host/${opt_apibase}/" . $id . "/measures?testcase_case_screenshot=false";
+		}
 	}
-	#$request = HTTP::Request->new('GET', $base_url);
-	#$response = $useragent->request($request);
 	if ($opt_jwt) {
 		$response = $useragent->get($base_url, "Authorization" => "Bearer $opt_jwt");
 	} else {
@@ -223,7 +244,7 @@ sub get_testcase_status {
 
 	my $m;
 	my @measures;
-	if ($opt_oldapi) {
+	if ($opt_apiversion == 0) {
 		$m = $hash_content->{measures};
 		@measures = @$m;
 	} else {
@@ -407,7 +428,7 @@ sub get_testcase_status {
 		}
 	}
 
-	if ($opt_oldapi) {
+	if ($opt_apiversion == 0) {
 		$URL = "${output_url}/reports/?runcode=${testcode}";
 	} else {
 		$URL = "/neteye/alyvix/testcases?nodeName=${opt_hostname}&testcaseId=${id}&tab=reports&runcode=${testcode}";
@@ -498,8 +519,14 @@ sub get_alyvix_services {
 		} else {
 			$timeouts{$service->{attrs}->{name}} = $opt_timeout;
 		}
+		if (defined($service->{attrs}->{vars}->{alyvix_tenant})) {
+			$tenants{$service->{attrs}->{name}} = $service->{attrs}->{vars}->{alyvix_tenant};
+		} else {
+			$tenants{$service->{attrs}->{name}} = $opt_tenant;
+		}
 		if ($opt_debug) {
 			print "Timeout: " . $timeouts{$service->{attrs}->{name}} . "\n";
+			print "Tenant: " . $tenants{$service->{attrs}->{name}} . "\n";
 		}
 		$n++;
 	}
@@ -608,6 +635,7 @@ sub get_api_version {
 }
 
 sub get_jwt_token {
+	my $opt_apiversion = shift;
 	my $opt_host = shift;
 	my $opt_user = shift;
 	my $opt_password = shift;
@@ -713,7 +741,6 @@ sub get_jwt_token {
 
 	if ($opt_debug) {
 		printf "CLIENT:%s\n",Data::Dumper::Dumper($client);
-		printf "RESPONSE:%s:%s\n",$client->responseHeader("Set-Cookie");
 	}
 	if (!defined($response)) {
 		print "UNKNOWN - Could not make neteye login (${base_url}) [", $status, "]\n";
@@ -733,7 +760,11 @@ sub get_jwt_token {
 	if ($opt_debug) {
 		print "COOKIE:$ICINGAWEB2_COOKIE\n";
 	}
-	$URL = ${base_url} . "/neteye/api/v1/jwt";
+	if ($opt_apiversion > 1) {
+		$URL = ${base_url} . "/neteye/alyvix/jwt-v1";
+	} else {
+		$URL = ${base_url} . "/neteye/api/v1/jwt";
+	}
 	$ua = new LWP::UserAgent();
 	$ua->ssl_opts(
 		SSL_verify_mode => SSL_VERIFY_NONE,
@@ -772,13 +803,24 @@ sub get_jwt_token {
 # ------------------------------------------ START MAIN --------------------------------------------
 #
 
-$opt_oldapi = get_api_version($opt_host);
-if (!$opt_oldapi) {
+if (!defined($opt_apiversion)) {
+	$opt_apiversion = get_api_version($opt_host);
+}
+if ($opt_apiversion > 0) {
+	if (! defined($opt_hostname)) {
+		print "ERROR: Missing Alyvix Server Hostname (-N)!\n";
+		exit 3;
+	}
+	if (! defined($opt_masterhostname)) {
+		print "ERROR: Missing NetEye Server Hostname (-M)!\n";
+		exit 3;
+	}
+
 	if ($opt_jwt) {
 		my @cred = split ":", $opt_webuserpass;
 		my $u = $cred[0];
 		my $p = $cred[1];
-		$opt_jwt = get_jwt_token($opt_masterhostname,$u,$p);
+		$opt_jwt = get_jwt_token($opt_apiversion, $opt_masterhostname, $u, $p);
 		if ($#opt_verbose > 1) {
 			print "JWTTOKEN=$opt_jwt\n";
 		}
@@ -790,7 +832,7 @@ my $outstr = "";
 my @statestr = ( "OK", "WARNING", "CRITICAL", "UNKNOWN" );
 
 foreach my $service ( sort @services ) {
-	my $state = get_testcase_status($opt_host, $testcases{$service}, $timeouts{$service}, $opt_hostname, $service);
+	my $state = get_testcase_status($opt_apiversion, $opt_host, $testcases{$service}, $timeouts{$service}, $opt_hostname, $service, $tenants{$service});
 	if ($state >= 20) {
 		$state = 3;
 		$outstr .= "[" . $statestr[$state] . "]\t{DISABLED} $service\n";
