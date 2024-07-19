@@ -161,10 +161,14 @@ sub get_testcase_status {
 	if (defined($opt_proxybase)) {
 		$output_url = "${opt_proxybase}/${opt_apibase}/${opt_testcase}";
 	}
+	my $m;
+	my @measures;
+	my $runCode="";
 	my $id = undef;
 	my $request;
 	my $response;
 	my $hash_content;
+	my $json_content;
 	my $useragent = LWP::UserAgent->new;
 	$useragent->ssl_opts(
 		SSL_verify_mode => SSL_VERIFY_NONE, 
@@ -211,15 +215,41 @@ sub get_testcase_status {
 			exit 3;
 		}
 		if ($opt_apiversion > 1) {
-			$base_url = "https://$opt_host/v${opt_apiversion}/${opt_tenant}/testcases/" . $id . "/measures?testcase_case_screenshot=false";
+			$base_url = "https://$opt_host/v${opt_apiversion}/${opt_tenant}/testcases/" . $id;
 		} else {
-			$base_url = "https://$opt_host/${opt_apibase}/" . $id . "/measures?testcase_case_screenshot=false";
+			$base_url = "https://$opt_host/${opt_apibase}/" . $id;
 		}
 	}
+	if ($opt_apiversion > 1) {
+		# Get Last Runcode
+		if ($opt_jwt) {
+			$response = $useragent->get("${base_url}/runs?page=1&pagelen=1", "Authorization" => "Bearer $opt_jwt");
+		} else {
+			$response = $useragent->get("$base_url}/runs?page=1&pagelen=1");
+		}
+		if (!$response->is_success) {
+			print "UNKNOWN - Could not connect to server (${base_url}) [", $response->status_line , "]\n";
+			exit 3;
+		}
+		if (!defined($response->content)) {
+			print "UNKNOWN - cannot access Alyvix Server API ($opt_testcase)\n";
+			exit 3;
+		}
+		$hash_content = JSON::decode_json($response->content);
+		if (!defined($hash_content)) {
+			printf "UNKNOWN - cannot decode JSON string ($opt_testcase)\n";
+			exit 3;
+		}
+		if ($opt_debug) {
+			printf "RUNS:%s\n",Data::Dumper::Dumper($hash_content);
+		}
+		$runCode = "/" . ${hash_content}->{values}[0]->{runcode};
+	}
+	# Get Last Measures
 	if ($opt_jwt) {
-		$response = $useragent->get($base_url, "Authorization" => "Bearer $opt_jwt");
+		$response = $useragent->get("${base_url}/measures${runCode}?testcase_case_screenshot=false", "Authorization" => "Bearer $opt_jwt");
 	} else {
-		$response = $useragent->get($base_url);
+		$response = $useragent->get("${base_url}/measures${runCode}?testcase_case_screenshot=false");
 	}
 
 	if (!$response->is_success) {
@@ -227,7 +257,7 @@ sub get_testcase_status {
 		exit 3;
 	}
 
-	my $json_content = $response->content;
+	$json_content = $response->content;
 	if (!defined($json_content)) {
 		print "UNKNOWN - cannot access Alyvix Server API ($opt_testcase)\n";
 		exit 3;
@@ -242,8 +272,6 @@ sub get_testcase_status {
 		exit 3;
 	}
 
-	my $m;
-	my @measures;
 	if ($opt_apiversion == 0) {
 		$m = $hash_content->{measures};
 		@measures = @$m;
