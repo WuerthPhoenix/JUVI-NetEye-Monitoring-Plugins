@@ -629,9 +629,9 @@ sub get_api_version {
 	}
 
 	if ($response->content =~ /token is missing/) {
-		return 0;
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 sub get_jwt_token {
