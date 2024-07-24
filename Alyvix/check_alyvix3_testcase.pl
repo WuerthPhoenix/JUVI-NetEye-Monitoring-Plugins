@@ -138,7 +138,7 @@ sub get_testcase_status {
 	my $timeout = shift;
 	my $opt_hostname = shift;
 	my $opt_tenant = shift;
-	my $base_url = "https://${opt_host}/${opt_apibase}/${opt_testcase}/";
+	my $base_url = "https://${opt_host}/${opt_apibase}/${opt_testcase}";
 	my $output_url = $base_url;
 	if (defined($opt_proxybase)) {
 		$output_url = "${opt_proxybase}/${opt_apibase}/${opt_testcase}";
@@ -231,7 +231,11 @@ sub get_testcase_status {
 	if ($opt_jwt) {
 		$response = $useragent->get("${base_url}/measures${runCode}?testcase_case_screenshot=false", "Authorization" => "Bearer $opt_jwt");
 	} else {
-		$response = $useragent->get("${base_url}/measures${runCode}?testcase_case_screenshot=false");
+		if ($opt_apiversion) {
+			$response = $useragent->get("${base_url}/measures${runCode}?testcase_case_screenshot=false");
+		} else {
+			$response = $useragent->get("${base_url}/");
+		}
 	}
 
 	if (!$response->is_success) {
@@ -524,6 +528,7 @@ sub get_api_version {
 	if ($response->content =~ /token is missing/) {
 		return 1;
 	}
+	$opt_jwt=0;
 	return 0;
 }
 
@@ -725,5 +730,9 @@ if ($opt_apiversion > 0) {
 }
 
 
-get_testcase_status($opt_apiversion, $opt_host, $opt_testcase, $opt_timeout, $opt_hostname, $opt_tenant);
+my $ret = get_testcase_status($opt_apiversion, $opt_host, $opt_testcase, $opt_timeout, $opt_hostname, $opt_tenant);
+if ($ret >= 20) {
+	print "UNKNOWN - Testcase DISABLED ($opt_testcase)\n";
+}
+
 exit 3;
