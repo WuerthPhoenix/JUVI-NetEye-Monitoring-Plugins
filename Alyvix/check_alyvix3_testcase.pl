@@ -497,13 +497,15 @@ sub print_help() {
 	print " -J (--usejwt)      Get JWT Token from NetEye API and use it on Alyvix API (use -p option)\n";
 	print " -A (--apibase)     Alyvix3 Server API BaseURL (default: $opt_apibase)\n";
 	print " -P (--proxypass)   The Output Url to access logs uses a proxypass\n";
+	print " -V (--apiversion)  Alyvix Service version (0,1,2,3) (default: discovered but only 1 or 2)\n";
+	print " -E (--teneant)     Alyvix Testcase Tenant, must have if APIVERSION=3\n";
 	print "\n";
 	exit 0;
 }
 
 sub print_usage() {
 	print "Usage: \n";
-	print "  $PROGNAME (-H|--host <hostname/ip>) (-T|--testcase <string>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>]\n";
+	print "  $PROGNAME (-H|--host <hostname/ip>) (-T|--testcase <string>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>] [-J] [-V <APIVERSION>] [-E <tenant>]\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
 }
