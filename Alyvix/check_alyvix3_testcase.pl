@@ -536,166 +536,37 @@ sub get_api_version {
 
 sub get_jwt_token {
 	my $opt_apiversion = shift;
-	my $opt_host = shift;
-	my $opt_user = shift;
-	my $opt_password = shift;
 
-	my $base_url = "https://${opt_host}";
-	my $ua = new LWP::UserAgent();
-	$ua->ssl_opts(
-		SSL_verify_mode => SSL_VERIFY_NONE, 
-		verify_hostname => 0
-	);
-	my $URL;
-	my $response;
-	my $ICINGAWEB2_COOKIE;
-	my $CSRF_TOKEN;
-	my $CSRF_TOKEN_URL_FORMATTED;
-
-	#
-	# pre login
-	#
-	$URL = ${base_url} . "/neteye/authentication/login";
-
-	my $cookie_jar = HTTP::Cookies->new( );
-	$cookie_jar->set_cookie(0,'icingaweb2-tzo', '7200-1','/','',80,0,0,86400,0);
-	$ua->cookie_jar($cookie_jar);
-	$response = $ua->get($URL,
-		'Host' => ${opt_host},
-		'Upgrade-Insecure-Requests' => 1,
-		'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.50 Safari/537.36',
-		'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-		'Sec-Fetch-Site' => 'none',
-		'Sec-Fetch-Mode' => 'navigate',
-		'Sec-Fetch-User' => '?1',
-		'Sec-Fetch-Dest' => 'document',
-		'Sec-Ch-Ua' => '"Not:A-Brand";v="99","Chromium";v="112"',
-		'Sec-Ch-Ua-Mobile' => '?0',
-		'Sec-Ch-Ua-Platform' => '"Linux"',
-		'Accept-Encoding' => 'gzip,deflate',
-		'Accept-Language' => 'en-US,en;q=0.9',
-		'Connection' => 'close');
-	if (!defined($response->content)) {
-		print "UNKNOWN - Could not connect to neteye login (${base_url}) [", $response->status_line , "]\n";
-		exit 3;
-	}
-	if ($opt_debug) {
-		print "\nCOOKIES:" . $response->headers()->header("Set-Cookie") . "\n";
-	}
-	if ($ICINGAWEB2_COOKIE = $response->headers()->header("Set-Cookie") =~ /.*Icingaweb2=(.*); path.*/) {
-		$ICINGAWEB2_COOKIE=$1;
-		if ($opt_debug) {
-			print $ICINGAWEB2_COOKIE;
-		}
-	} else {
-		print "UNKNOWN - Could not extract Icingaweb2 Cookie (", $response->headers()->header("Set-Cookie") , ")\n";
-		exit 3;
-	}
-
-	my @content = split /^/, $response->content;
-	my @TOKENLINE = grep(/form_login_CSRFToken/, @content);
-	if ($TOKENLINE[0] =~ / value="([^"]*)"/) {
-		$CSRF_TOKEN=$1;
-		$CSRF_TOKEN_URL_FORMATTED=uri_encode($CSRF_TOKEN);
-	} else {
-		print "UNKNOWN - Could not extract CSRF_TOKEN (", @TOKENLINE, ")\n";
-		exit 3;
-	}
-
-	#
-	# login request
-	#
-
-	$URL = "/neteye/authentication/login";
-	my $client = REST::Client->new();
-	$client->setHost($base_url);
-	$client->getUseragent()->ssl_opts(
-		SSL_verify_mode => SSL_VERIFY_NONE,
-		verify_hostname => 0
-	);
-	$client->addHeader('Host', ${opt_host});
-	$client->addHeader('Sec-Ch-Ua', '"Not:A-Brand";v="99","Chromium";v="112"');
-	$client->addHeader('X-Icinga-Windowid', 'mquxzfpsojyc');
-	$client->addHeader('X-Icinga-Accept', 'text/html');
-	$client->addHeader('Sec-Ch-Ua-Mobile', '?0');
-	$client->addHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.50 Safari/537.36');
-	$client->addHeader('Content-Type', 'application/x-www-form-urlencoded;charset=UTF-8');
-	$client->addHeader('Accept', '*/*');
-	$client->addHeader('X-Requested-With', 'XMLHttpRequest');
-	$client->addHeader('X-Icinga-Container', 'layout');
-	$client->addHeader('Sec-Ch-Ua-Platform', '"Linux"');
-	$client->addHeader('Origin', "https://${opt_host}");
-	$client->addHeader('Sec-Fetch-Site', 'same-origin');
-	$client->addHeader('Sec-Fetch-Mode', 'cors');
-	$client->addHeader('Sec-Fetch-Dest', 'empty');
-	$client->addHeader('Referer', "https://${opt_host}/neteye/authentication/login");
-	$client->addHeader('Accept-Encoding', 'gzip,deflate');
-	$client->addHeader('Accept-Language', 'en-US,en;q=0.9');
-	$client->addHeader('Connection', 'close');
-	$client->addHeader('Cookie', "icingaweb2-tzo=7200-1; Icingaweb2=$ICINGAWEB2_COOKIE");
-	my $data = "username=${opt_user}&password=${opt_password}&rememberme=0&redirect=&formUID=form_login&CSRFToken=${CSRF_TOKEN_URL_FORMATTED}&btn_submit=Login";
-	$client->POST($URL, $data);
-
-	my $status = $client->responseCode();
-	$response = $client->responseContent();
-
-	if ($opt_debug) {
-		printf "CLIENT:%s\n",Data::Dumper::Dumper($client);
-	}
-	if (!defined($response)) {
-		print "UNKNOWN - Could not make neteye login (${base_url}) [", $status, "]\n";
-		exit 3;
-	}
-	if ($ICINGAWEB2_COOKIE = $client->responseHeader("Set-Cookie") =~ /.*Icingaweb2=(.*); path.*/) {
-		$ICINGAWEB2_COOKIE=$1;
-	} else {
-		print "UNKNOWN - Could not extract Icingaweb2 Cookie (", $response->headers()->header("Set-Cookie") , ")\n";
-		exit 3;
-	}
+	my $host = "https://httpd.neteyelocal";
+	my $sub_url;
 
 	#
 	# JWT Request
 	#
 
-	if ($opt_debug) {
-		print "COOKIE:$ICINGAWEB2_COOKIE\n";
-	}
 	if ($opt_apiversion > 1) {
-		$URL = ${base_url} . "/neteye/alyvix/jwt-v1";
+		$sub_url = "/neteye/alyvix/jwt-v1";
 	} else {
-		$URL = ${base_url} . "/neteye/api/v1/jwt";
-	}
-	$ua = new LWP::UserAgent();
-	$ua->ssl_opts(
-		SSL_verify_mode => SSL_VERIFY_NONE,
-		verify_hostname => 0
-	);
-	$response = $ua->get($URL,
-		'Host' => ${opt_host},
-		'Sec-Ch-Ua' => '"Not:A-Brand";v="99","Chromium";v="112"',
-		'Sec-Ch-Ua-Mobile' => '?0',
-		'Sec-Ch-Ua-Platform' => '"Linux"',
-		'Upgrade-Insecure-Requests' => '1',
-		'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.50 Safari/537.36',
-		'Accept' => '*/*',
-		'Sec-Fetch-Site' => 'none',
-		'Sec-Fetch-Mode' => 'navigate',
-		'Sec-Fetch-User' => '?1',
-		'Sec-Fetch-Dest' => 'document',
-		'Accept-Encoding' => 'gzip,deflate',
-		'Accept-Language' => 'en-US,en;q=0.9',
-		'Cookie' => "icingaweb2-tzo=7200-1; Icingaweb2=$ICINGAWEB2_COOKIE",
-		'Connection' => 'close');
-	if (!defined($response->content)) {
-		print "UNKNOWN - Could not connect to neteye login (${base_url}) [", $response->status_line , "]\n";
-		exit 3;
+		$sub_url = "/neteye/api/v1/jwt";
 	}
 
-	my $json_content = JSON::decode_json($response->content);
+    my $client = REST::Client->new();
+	$client->setHost($host);
+	$client->getUseragent()->ssl_opts(verify_hostname => 0);
+	$client->addHeader("Accept", "application/json");
+	$client->addHeader("X-HTTP-Method-Override", "GET");
+	$client->addHeader("Authorization", "Basic " . encode_base64($opt_userpass));
+	$client->GET($sub_url);
+
+	my $status = $client->responseCode();
+	my $response = $client->responseContent();
+
+	my $json_content = JSON::decode_json($response);
 	if (!defined($json_content->{token})) {
 		print "UNKNOWN - Could get JWT Token [", $response->status_line , "]\n";
 		exit 3;
 	}
+
 	return $json_content->{token};
 }
 
@@ -724,7 +595,7 @@ if ($opt_apiversion > 0) {
 		my @cred = split ":", $opt_userpass;
 		my $u = $cred[0];
 		my $p = $cred[1];
-		$opt_jwt = get_jwt_token($opt_apiversion, $opt_masterhostname, $u, $p);
+		$opt_jwt = get_jwt_token($opt_apiversion);
 		if ($#opt_verbose > 1) {
 			print "JWTTOKEN=$opt_jwt\n";
 		}
