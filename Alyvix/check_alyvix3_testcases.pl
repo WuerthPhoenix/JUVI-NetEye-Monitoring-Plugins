@@ -25,6 +25,8 @@
 # 19/09/2023 VIJU: Adapted to Alyvix Serivice 2.3 now with /v0 API prefix
 # 03/03/2023 VIJU: Support new Alyvix Service API
 # 18/07/2024 VIJU: Added support for Alyvix Service v3 API
+# 04/10/2024 VIJU: Fixed getting JWT Token only over a Basic-Auth URL
+# 16/10/2024 VIJU: Added Report Hostname as hostname in monitoring and in Alyvix Frontend could be different
 #
 
 use strict;
@@ -54,6 +56,7 @@ my $opt_debug        = 0;
 my $opt_host         = undef;
 my $opt_hostname     = undef;
 my $opt_masterhostname = 'icinga2-master.neteyelocal';
+my $opt_reporthostname = undef;
 my $opt_servicepre   = undef;
 my $opt_testuser     = undef;
 my $opt_timeout      = 0;
@@ -83,6 +86,8 @@ GetOptions(
 	'hostname=s'		=> \$opt_hostname,
 	'M=s'			=> \$opt_masterhostname,
 	'masterhostname=s'	=> \$opt_masterhostname,
+	'R=s'			=> \$opt_reporthostname,
+	'reporthostname=s'	=> \$opt_reporthostname,
 	'T=s'			=> \$opt_servicepre,
 	'testcasepre=s'		=> \$opt_servicepre,
 	'U=s'			=> \$opt_testuser,
@@ -138,6 +143,10 @@ if (defined($opt_apiversion) && ($opt_apiversion > 1)) {
 	}
 }
 
+if (! defined($opt_reporthostname)) {
+	$opt_reporthostname = $opt_hostname;
+}
+
 # Global Variables
 my $request_url = "https://${opt_masterhostname}:5665";
 my @services;
@@ -154,6 +163,7 @@ sub get_testcase_status {
 	my $opt_testcase = shift;
 	my $opt_timeout = shift;
 	my $opt_hostname = shift;
+	my $opt_reporthostname = shift;
 	my $opt_service = shift;
 	my $opt_tenant = shift;
 	my $base_url = "https://${opt_host}/${opt_apibase}/${opt_testcase}";
@@ -463,7 +473,7 @@ sub get_testcase_status {
 	if ($opt_apiversion == 0) {
 		$URL = "${output_url}/reports/?runcode=${testcode}";
 	} else {
-		$URL = "/neteye/alyvix/testcases?nodeName=${opt_hostname}&testcaseId=${id}&tab=reports&runcode=${testcode}";
+		$URL = "/neteye/alyvix/testcases?nodeName=${opt_reporthostname}&testcaseId=${id}&tab=reports&runcode=${testcode}";
 	}
 	my $testtimestr = scalar localtime $testtime;
 	if ($opt_debug) {
@@ -624,6 +634,7 @@ sub print_help() {
 	print " -H (--host)        Alyvix3 Server hostname/ip\n";
 	print " -N (--hostname)    Alyvix3 Monitoring Hostname\n";
 	print " -M (--masterhostname) Icinga2 Master/Web Hostname for API and Web access\n";
+	print " -R (--reporthostname) Hostname inside the Alyvix Frontend for Report URL\n";
 	print " -U (--testuser)    Alyvix3 Testcase user (default: ALL_USERS)\n";
 	print " -t (--timeout)     Alyvix3 Testcase values older then timeout gives UNKNOWN (default: $opt_timeout)\n";
 	print " -d (--statedir)    Directory where to write the statefiles (default: $opt_statedir)\n";
@@ -640,7 +651,7 @@ sub print_help() {
 
 sub print_usage() {
 	print "Usage: \n";
-	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-w|--webuserpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>] [-J] [-V <APIVERSION>] [-E <tenant>]\n";
+	print "  $PROGNAME (-H|--host <hostname/ip>) (-N|--hostname <host.name>) (-p|--userpass <user:pass>) [-U|--testuser <user>] [-t|--timeout <int>] [-d|--statedir <dir>] [-w|--webuserpass <user:pass>] [-A|--apibase <apibase>] [-P|--proxypass <proxy-pre>] [-M|--masterhostname <hostname>] [-R|--reporthostname <hostname>] [-J] [-V <APIVERSION>] [-E <tenant>]\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
 }
@@ -744,7 +755,7 @@ my $outstr = "";
 my @statestr = ( "OK", "WARNING", "CRITICAL", "UNKNOWN" );
 
 foreach my $service ( sort @services ) {
-	my $state = get_testcase_status($opt_apiversion, $opt_host, $testcases{$service}, $timeouts{$service}, $opt_hostname, $service, $tenants{$service});
+	my $state = get_testcase_status($opt_apiversion, $opt_host, $testcases{$service}, $timeouts{$service}, $opt_hostname, $opt_reporthostname, $service, $tenants{$service});
 	if ($state >= 20) {
 		$state = 3;
 		$outstr .= "[" . $statestr[$state] . "]\t{DISABLED} $service\n";
