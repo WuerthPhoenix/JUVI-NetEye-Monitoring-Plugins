@@ -253,6 +253,9 @@ sub get_testcase_status {
 		if ($opt_debug) {
 			printf "RUNS:%s\n",Data::Dumper::Dumper($hash_content);
 		}
+		if (!exists(${hash_content}->{values}[0]->{runcode})) {
+			return 31;
+		}
 		$runCode = "/" . ${hash_content}->{values}[0]->{runcode};
 	}
 	# Get Last Measures
@@ -756,7 +759,10 @@ my @statestr = ( "OK", "WARNING", "CRITICAL", "UNKNOWN" );
 
 foreach my $service ( sort @services ) {
 	my $state = get_testcase_status($opt_apiversion, $opt_host, $testcases{$service}, $timeouts{$service}, $opt_hostname, $opt_reporthostname, $service, $tenants{$service});
-	if ($state >= 20) {
+	if ($state >= 30) {
+		$state = 3;
+		$outstr .= "[" . $statestr[$state] . "]\t{NO REPORTS} $service\n";
+	} elsif ($state >= 20) {
 		$state = 3;
 		$outstr .= "[" . $statestr[$state] . "]\t{DISABLED} $service\n";
 	} elsif ($state >= 10) {
