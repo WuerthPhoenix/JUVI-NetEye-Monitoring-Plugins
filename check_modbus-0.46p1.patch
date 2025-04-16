@@ -1,0 +1,206 @@
+diff -ruN check_modbus-0.46/src/check_modbus.c check_modbus-0.46p1/src/check_modbus.c
+--- check_modbus-0.46/src/check_modbus.c	2013-05-30 20:31:44.000000000 +0200
++++ check_modbus-0.46p1/src/check_modbus.c	2025-04-16 15:39:32.879977115 +0200
+@@ -114,7 +114,18 @@
+     {
+         printf("\t\t|'%s'=", params->perf_label);
+         printf_data_t( stdout, data );
+-        printf(";%lf;%lf;", params->warn_range, params->crit_range);
++        if (!params->warn_range && !params->crit_range) {
++                printf(";%lf;%lf;", params->warn, params->crit);
++        } else {
++                if (!params->warn_range)
++                {
++                    printf(";;%s;", params->crit_range);
++                } else if (!params->crit_range) {
++                    printf(";%s;;", params->warn_range);
++                } else {
++                    printf(";%s;%s;", params->warn_range, params->crit_range);
++                }
++        }
+         if (params->perf_min_en) printf("%lf", params->perf_min );
+         printf(";");
+         if (params->perf_max_en) printf("%lf", params->perf_max );
+@@ -124,31 +135,72 @@
+ int print_result(modbus_params_t* params, data_t* data)
+ {
+     int rc = RESULT_UNKNOWN;
+-    double   result, warn_range, crit_range;
++    int slen;
++    double   result, warn, crit, warn2, crit2;
+ 
+ 
+     if (params->verbose) printf("print_result\n");
+ 
+     result      = value_data_t(data);
+-    warn_range  = params->warn_range;
+-    crit_range  = params->crit_range;
+ 
+     if (params->nc != params->nnc )
+     {
+         if (params->nc  == 1 )  rc = ( result == 0 ) ? RESULT_CRITICAL : RESULT_OK;
+         if (params->nnc == 1 )  rc = ( result != 0 ) ? RESULT_CRITICAL : RESULT_OK;
+-    }
+-    else
++    } else if (!params->warn_range && !params->crit_range)
+     {
+-        if ( warn_range <= crit_range)
++        warn  = params->warn;
++        crit  = params->crit;
++        if (params->verbose) printf("Warn/Crit as values: %ld/%ld\n", warn,crit);
++        if ( warn <= crit)
+         {
+-            if ( result >= crit_range)      rc = RESULT_CRITICAL;
+-            else rc = ( result >= warn_range) ? RESULT_WARNING : RESULT_OK;
++            if ( result >= crit)      rc = RESULT_CRITICAL;
++            else rc = ( result >= warn) ? RESULT_WARNING : RESULT_OK;
+         }
+         else
+         {
+-            if ( result <= crit_range)      rc = RESULT_CRITICAL;
+-            else rc = ( result <= warn_range) ?  RESULT_WARNING : RESULT_OK;
++            if ( result <= crit)      rc = RESULT_CRITICAL;
++            else rc = ( result <= warn) ?  RESULT_WARNING : RESULT_OK;
++        }
++    } else
++    {
++        if (params->verbose) printf("Warn/Crit as range: %s/%s\n", params->warn_range, params->crit_range);
++        rc = RESULT_OK;
++        if (params->crit_range)
++        {
++            slen = strlen(params->crit_range) - 1;
++            if (strchr(params->crit_range,':') == params->crit_range)
++            {
++                crit = atof(params->crit_range+1);
++                if (result > crit)        rc = RESULT_CRITICAL;
++            } else if (strchr(params->crit_range, ':') == params->crit_range + slen)
++            {
++                crit = atof(params->crit_range);
++                if (result < crit)        rc = RESULT_CRITICAL;
++            } else
++            {
++                crit = atof(params->crit_range);
++                crit2 = atof(strchr(params->crit_range,':')+1);
++                if ((result < crit) || (result > crit2))    rc = RESULT_CRITICAL;
++            }
++        }
++        if ((rc == RESULT_OK) && params->warn_range)
++        {
++            slen = strlen(params->warn_range) - 1;
++            if (strchr(params->warn_range,':') == params->warn_range)
++            {
++                warn = atof(params->warn_range+1);
++                if (result > warn)        rc = RESULT_WARNING;
++            } else if (strchr(params->warn_range, ':') == params->warn_range + slen)
++            {
++                crit = atof(params->crit_range);
++                if (result < crit)        rc = RESULT_CRITICAL;
++            } else
++            {
++                warn = atof(params->warn_range);
++                warn2 = atof(strchr(params->warn_range,':')+1);
++                if ((result < warn) || (result > warn2))    rc = RESULT_WARNING;
++            }
+         }
+     }
+ 
+@@ -156,13 +208,13 @@
+     switch(rc)
+     {
+         case RESULT_OK:
+-            printf("Ok: ");
++            printf("Ok: %s=", params->perf_label);
+             break;
+         case RESULT_WARNING:
+-            printf("Warning: ");
++            printf("Warning: %s=", params->perf_label);
+             break;
+         case RESULT_CRITICAL:
+-            printf("Critical: ");
++            printf("Critical: %s=", params->perf_label);
+             break;
+         case RESULT_UNKNOWN:
+             printf("Unknown result");
+@@ -260,7 +312,8 @@
+         /* set short timeout */
+         response_timeout.tv_sec = 1;
+         response_timeout.tv_usec = 0;
+-        modbus_set_response_timeout( *mb, &response_timeout );
++        /* modbus_set_response_timeout( *mb, &response_timeout ); */
++        modbus_set_response_timeout( *mb, 1, 0 );
+ 
+         modbus_set_slave(*mb,params->devnum);
+     }
+diff -ruN check_modbus-0.46/src/check_modbus.h check_modbus-0.46p1/src/check_modbus.h
+--- check_modbus-0.46/src/check_modbus.h	2013-05-30 20:31:44.000000000 +0200
++++ check_modbus-0.46p1/src/check_modbus.h	2025-04-16 13:59:30.168009200 +0200
+@@ -30,8 +30,10 @@
+     int     devnum;                     // Device modbus address
+     int     sad;                        // register/bit address
+     int     nf;                         // Number of function
+-    double  warn_range;                 // Warning range
+-    double  crit_range;                 // Critical range
++    char*   warn_range;                 // Warning range
++    char*   crit_range;                 // Critical range
++    double  warn;                       // Warning value
++    double  crit;                       // Critical value
+     char    *host;                      // IP address or host name
+ 
+ #if LIBMODBUS_VERSION_MAJOR >= 3
+diff -ruN check_modbus-0.46/src/command_line.c check_modbus-0.46p1/src/command_line.c
+--- check_modbus-0.46/src/command_line.c	2013-05-30 20:31:44.000000000 +0200
++++ check_modbus-0.46p1/src/command_line.c	2025-04-16 15:39:55.073873596 +0200
+@@ -126,8 +126,10 @@
+     fprintf(fd, "format:      %d\n",          params->format      );
+     fprintf(fd, "swap bytes:  %d\n",          params->swap_bytes  );
+     fprintf(fd, "\n");
+-    fprintf(fd, "warning:     %lf\n",         params->warn_range  );
+-    fprintf(fd, "critical:    %lf\n",         params->crit_range  );
++    fprintf(fd, "warning_r:   %s\n",          params->warn_range ? params->warn_range : "NULL" );
++    fprintf(fd, "critical_r:  %s\n",          params->crit_range ? params->crit_range : "NULL" );
++    fprintf(fd, "warning:     %lf\n",         params->warn  );
++    fprintf(fd, "critical:    %lf\n",         params->crit  );
+     fprintf(fd, "null:        %d\n",          params->nc          );
+     fprintf(fd, "not null:    %d\n",          params->nnc         );
+     fprintf(fd, "\n");
+@@ -180,14 +182,16 @@
+     params->inverse_words  = 0;
+     params->swap_bytes  = 0;
+ 
+-    params->warn_range  = 0;
+-    params->crit_range  = 0;
++    params->warn_range  = NULL;
++    params->crit_range  = NULL;
++    params->warn        = 0;
++    params->crit        = 0;
+     params->verbose     = 0;
+ 
+     params->perf_min_en = 0;
+     params->perf_max_en = 0;
+     params->perf_data   = 0;
+-    params->perf_label  = NULL;
++    params->perf_label  = "value";
+     params->perf_min    = 0;
+     params->perf_max    = 0;
+ 
+@@ -511,10 +515,18 @@
+                 params->format = atoi(optarg);
+                 break;
+             case 'w':
+-                params->warn_range = atof(optarg);
++                if (!strchr(optarg, ':')) {
++                        params->warn = atof(optarg);
++                } else {
++                        params->warn_range = optarg;
++                }
+                 break;
+             case 'c':
+-                params->crit_range = atof(optarg);
++                if (!strchr(optarg, ':')) {
++                        params->crit = atof(optarg);
++                } else {
++                        params->crit_range = optarg;
++                }
+                 break;
+             case 'n':
+                 params->nc = 1;
